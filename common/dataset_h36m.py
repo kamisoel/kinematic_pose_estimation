@@ -14,7 +14,7 @@ from common.skeleton import Skeleton
 from common.camera import *
 
 
-skeleton_h36m = Skeleton(offsets=[
+h36m_skeleton = Skeleton(offsets=[
        [   0.      ,    0.      ,    0.      ],
        [-132.948591,    0.      ,    0.      ],
        [   0.      , -442.894612,    0.      ],
@@ -245,7 +245,7 @@ h36m_cameras_extrinsic_params = {
 
 class Human36mDataset(MocapDataset):
     def __init__(self, path, remove_feet=True):
-        super().__init__(fps=50, skeleton=copy.deepcopy(h36m_skeleton))
+        super().__init__(skeleton=copy.deepcopy(h36m_skeleton), fps=50, )
         
         self._cameras = copy.deepcopy(h36m_cameras_extrinsic_params)
         for cameras in self._cameras.values():
@@ -271,6 +271,7 @@ class Human36mDataset(MocapDataset):
         data = np.load(path, allow_pickle=True)
         pos_3d = data['positions_3d'].item()
         rot_3d = data['rotations_3d'].item()
+        traj = data['trajectory'].item()
         
         self._data = {}
         for subject, actions in pos_3d.items():
@@ -279,8 +280,8 @@ class Human36mDataset(MocapDataset):
                 self._data[subject][action_name] = {
                     'positions': positions,
                     'cameras': self._cameras[subject],
-                    'rotations': rot_3d[:, 1:, :],
-                    'trajectory': rot_3d[:, 0, :],
+                    'rotations': rot_3d[subject][action_name],
+                    'trajectory': traj[subject][action_name],
                 }
         
 
@@ -301,7 +302,7 @@ class Human36mDataset(MocapDataset):
         """
         compute 2D gt poses from all 4 cameras in pixel space
         """
-        print('Computing ground-truth 2D poses...')
+        #print('Computing ground-truth 2D poses...')
         for subject in self.subjects():
               for action in self._data[subject].keys():
                   anim = self._data[subject][action]

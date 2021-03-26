@@ -10,6 +10,17 @@ import numpy as np
 
 # PyTorch-backed implementations
 
+def qinverse(q, inplace=False):
+    # We assume the quaternion to be normalized
+    if inplace:
+        q[..., 1:] *= -1
+        return q
+    else:
+        w = q[..., :1]
+        xyz = q[..., 1:]
+        return torch.cat((w, -xyz), dim=len(q.shape)-1)
+
+
 def qmul(q, r):
     """
     Multiply quaternion(s) q with quaternion(s) r.

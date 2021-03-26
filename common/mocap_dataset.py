@@ -7,10 +7,10 @@
 
 import numpy as np
 import torch
-from common.quaternion import qeuler_np, qfix
+from common.quaternion import qeuler_np, qfix, qmul_np
 
 class MocapDataset:
-    def __init__(self, path, skeleton, fps):
+    def __init__(self, skeleton, fps):
         self._data = None # Must be filled by subclass
         self._cameras = None # Must be filled by subclass
         self._fps = fps
@@ -29,21 +29,26 @@ class MocapDataset:
         skeleton definition and the dataset
         The rotations of removed joints are propagated along the kinematic chain.
         """
-        kept_joints = self._skeleton.remove_joints(joints_to_remove)
+        kept_joints = [joint for joint in range(len(self._skeleton.parents()))
+                       if joint not in joints_to_remove]
 
         for subject in self._data.keys():
             for action in self._data[subject].keys():
                 s = self._data[subject][action]
+                # remove position data
                 if 'positions' in s:
-                    s['positions'] = s['positions'][:, kept_joints]
+                    s['positions'] =  np.ascontiguousarray(s['positions'][:, kept_joints])
 
-                # Update all transformations in the dataset
+                # Update all rotations in the dataset
                 rotations = s['rotations']
                 for joint in joints_to_remove:
                     for child in self._skeleton.children()[joint]:
                         rotations[:, child] = qmul_np(rotations[:, joint], rotations[:, child])
                     rotations[:, joint] = [1, 0, 0, 0] # Identity
                 self._data[subject][action]['rotations'] = rotations[:, kept_joints]
+        
+        # remove joints from skeleton
+        self._skeleton.remove_joints(joints_to_remove)
 
         
     def downsample(self, factor, keep_strides=True):
