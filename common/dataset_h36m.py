@@ -294,6 +294,7 @@ class Human36mDataset(MocapDataset):
         # Rewire shoulders to the correct parents
         self._skeleton._parents[11] = 8
         self._skeleton._parents[14] = 8
+        self._skeleton._compute_metadata() # recalculate children
 
         self.calc_2d_pos()
 

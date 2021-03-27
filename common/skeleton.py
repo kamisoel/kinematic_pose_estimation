@@ -43,10 +43,12 @@ class Skeleton:
         Remove the joints specified in 'joints_to_remove' from the
         skeleton definition
         """
-        valid_joints = []
-        for joint in range(len(self._parents)):
-            if joint not in joints_to_remove:
-                valid_joints.append(joint)
+        kept_joints = [joint for joint in range(len(self._parents))
+                      if joint not in joints_to_remove]
+
+        for i in range(len(self._parents)):
+            while self._parents[i] in joints_to_remove:
+                self._parents[i] = self._parents[self._parents[i]]
                 
 
         index_offsets = np.zeros(len(self._parents), dtype=int)
@@ -58,25 +60,25 @@ class Skeleton:
                 index_offsets[i:] += 1
         self._parents = np.array(new_parents)
 
-        self._offsets = self._offsets[valid_joints]
+        self._offsets = self._offsets[kept_joints]
 
 
         if self._joints_left is not None:
             new_joints_left = []
             for joint in self._joints_left:
-                if joint in valid_joints:
+                if joint in kept_joints:
                     new_joints_left.append(joint - index_offsets[joint])
             self._joints_left = new_joints_left
         if self._joints_right is not None:
             new_joints_right = []
             for joint in self._joints_right:
-                if joint in valid_joints:
+                if joint in kept_joints:
                     new_joints_right.append(joint - index_offsets[joint])
             self._joints_right = new_joints_right
 
         self._compute_metadata()
 
-        return valid_joints
+        return kept_joints
 
         
     def forward_kinematics(self, rotations, root_positions):

@@ -39,19 +39,19 @@ def render_animation(data, skeleton, fps, output='interactive', bitrate=1000):
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_zticklabels([])
-    ax.dist = 7.5
+    ax.dist = 9.5 # 7.5
 
     lines = []
     initialized = False
     
-    trajectory = data[:, 0, [0, 2]]
+    trajectory = data[:, 0, [0, 1]]
     avg_segment_length = np.mean(np.linalg.norm(np.diff(trajectory, axis=0), axis=1)) + 1e-3
     draw_offset = int(25/avg_segment_length)
     spline_line, = ax.plot(*trajectory.T)
     camera_pos = trajectory
-    height_offset = np.min(data[:, :, 1]) # Min height
+    height_offset = np.min(data[:, :, 2]) # Min height
     data = data.copy()
-    data[:, :, 1] -= height_offset
+    data[:, :, 2] -= height_offset
     
     def update(frame):
         nonlocal initialized
@@ -66,16 +66,17 @@ def render_animation(data, skeleton, fps, output='interactive', bitrate=1000):
                 col = 'red' if i in skeleton.joints_right() else 'black' # As in audio cables :)
                 lines.append(ax.plot([positions_world[i, x], positions_world[skeleton_parents[i], x]],
                         [positions_world[i, y], positions_world[skeleton_parents[i], y]],
-                        [positions_world[i, z], positions_world[skeleton_parents[i], z]], zdir='y', c=col))
+                        [positions_world[i, z], positions_world[skeleton_parents[i], z]], c=col))
             else:
                 lines[i-1][0].set_xdata([positions_world[i, x], positions_world[skeleton_parents[i], x]])
                 lines[i-1][0].set_ydata([positions_world[i, y], positions_world[skeleton_parents[i], y]])
-                lines[i-1][0].set_3d_properties([positions_world[i, z], positions_world[skeleton_parents[i], z]], zdir='y')
+                lines[i-1][0].set_3d_properties([positions_world[i, z], positions_world[skeleton_parents[i], z]]
+                )
         l = max(frame-draw_offset, 0)
         r = min(frame+draw_offset, trajectory.shape[0])
         spline_line.set_xdata(trajectory[l:r, 0])
-        spline_line.set_ydata(np.zeros_like(trajectory[l:r, 0]))
-        spline_line.set_3d_properties(trajectory[l:r, 1], zdir='y')
+        spline_line.set_ydata(trajectory[l:r, 1])
+        spline_line.set_3d_properties(np.zeros_like(trajectory[l:r, 0]))
         initialized = True
         if output == 'interactive' and frame == data.shape[0] - 1:
             plt.close('all')

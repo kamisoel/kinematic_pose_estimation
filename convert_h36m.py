@@ -50,9 +50,10 @@ def preprocess_rotations(data):
             t = data[subject][action][:,0,:]
 
             # keep angles in [-180°,180°]
-            r = (r + 180) % 360 - 180
-            # change order from zyx to xyz
-            #r = np.flip(r, axis=-1)
+            #r = (r + 180) % 360 - 180
+
+            # change order from zxy to xyz
+            r = np.roll(r, 2, axis=-1)
             
             # add zero rotation for end-effectors if necessary
             if r.shape[1] == 25:
@@ -66,7 +67,7 @@ def preprocess_rotations(data):
             # degrees to radians
             r = np.deg2rad(r)
             #change from euler to quaternion representation
-            r = euler_to_quaternion(r, 'zyx')
+            r = euler_to_quaternion(r, 'xyz')
             
             rot_3d[subject][action] = r
             traj[subject][action] = t
