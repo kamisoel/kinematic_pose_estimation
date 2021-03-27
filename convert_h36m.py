@@ -28,8 +28,8 @@ def load_h36m_feature(path, feature='D3_Positions', n_joints=32,
         continue # Discard corrupted video
 
       cdf_content = cdflib.CDF(f.resolve())['Pose']
-      if 'Position' in feature:
-        cdf_content /= 1000 # Meters instead of millimeters
+      #if 'Position' in feature:
+      #  cdf_content /= 1000 # Meters instead of millimeters
       #if 'Angle' in feature:
       #  cdf_content = cdf_content[:, :, 3:] # drop hip position
 
@@ -62,7 +62,9 @@ def preprocess_rotations(data):
                       r[:,9:13,:], np.zeros((l,1,3)), r[:,13:19,:], 
                       np.zeros((l,2,3)), r[:,19:,:], np.zeros((l,2,3))),
                     axis=1)
-
+            
+            # degrees to radians
+            r = np.deg2rad(r)
             #change from euler to quaternion representation
             r = euler_to_quaternion(r, 'zyx')
             
@@ -111,14 +113,14 @@ def prepare_2d_data(path, remove_feet=False):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Dataset preparation')
-  parser.add_argument('-p', '--path', default='./h36m', type=str, metavar='NAME', help='dataset path')
+  parser.add_argument('-p', '--path', default='./data', type=str, metavar='NAME', help='dataset path')
   parser.add_argument('--no-feet', action='store_false', dest='include_feet',
                         help='disable the inclusion of feet in the model')
-  parser.set_defaults(include_feet=True)
+  parser.set_defaults(include_feet=False)
 
   args = parser.parse_args()
 
-  prepare_2d_data(args.path, args.include_feet)
+  prepare_2d_data(args.path, not args.include_feet)
 
 
 
