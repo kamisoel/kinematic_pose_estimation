@@ -244,7 +244,7 @@ h36m_cameras_extrinsic_params = {
 }
 
 class Human36mDataset(MocapDataset):
-    def __init__(self, path, remove_feet=True):
+    def __init__(self, path, keep_feet=False, keep_real_shoulder=False):
         super().__init__(skeleton=copy.deepcopy(h36m_skeleton), fps=50, )
         
         self._cameras = copy.deepcopy(h36m_cameras_extrinsic_params)
@@ -285,16 +285,18 @@ class Human36mDataset(MocapDataset):
                 }
         
 
-        # Bring the skeleton to 21 joints (17+4 from feet) instead of the original 32
-        self.remove_joints([16, 20, 21, 22, 23, 24, 28, 29, 30, 31])        
-        if remove_feet:
-            # Bring the skeleton to 17 joints (see Coco challenge for details)
-            self.remove_joints([4, 5, 9, 10, 11])
+        # Bring the skeleton to 21 joints instead of the original 32
+        self.remove_joints([5, 10, 11, 20, 21, 22, 23, 28, 29, 30, 31])
 
-        # Rewire shoulders to the correct parents
-        self._skeleton._parents[11] = 8
-        self._skeleton._parents[14] = 8
-        self._skeleton._compute_metadata() # recalculate children
+        if not keep_real_shoulder: #TODO: something is odd
+            self.remove_joints([13, 17])
+            # Rewire shoulders to the correct parents
+            #self._skeleton._parents[13] = 9
+            #self._skeleton._parents[17] = 9
+            self._skeleton._compute_metadata() # recalculate children
+        
+        if not keep_feet:
+            self.remove_joints([4, 8])
 
         self.calc_2d_pos()
 

@@ -46,11 +46,14 @@ class Skeleton:
         kept_joints = [joint for joint in range(len(self._parents))
                       if joint not in joints_to_remove]
 
+        # set parent to parents' parent if removed
+        # does not work for h36m shoulders
         for i in range(len(self._parents)):
             while self._parents[i] in joints_to_remove:
                 self._parents[i] = self._parents[self._parents[i]]
                 
 
+        # recount indices for parent list
         index_offsets = np.zeros(len(self._parents), dtype=int)
         new_parents = []
         for i, parent in enumerate(self._parents):
@@ -61,8 +64,9 @@ class Skeleton:
         self._parents = np.array(new_parents)
 
         self._offsets = self._offsets[kept_joints]
+        # shoulder offset?
 
-
+        # fix indices for joints_left & joints_right
         if self._joints_left is not None:
             new_joints_left = []
             for joint in self._joints_left:

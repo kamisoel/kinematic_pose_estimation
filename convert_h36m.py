@@ -67,7 +67,7 @@ def preprocess_rotations(data):
             # degrees to radians
             r = np.deg2rad(r)
             #change from euler to quaternion representation
-            r = euler_to_quaternion(r, 'xyz')
+            r = euler_to_quaternion(r, 'zxy')
             
             rot_3d[subject][action] = r
             traj[subject][action] = t

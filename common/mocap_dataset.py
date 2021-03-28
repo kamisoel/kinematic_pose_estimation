@@ -40,6 +40,8 @@ class MocapDataset:
                     s['positions'] =  np.ascontiguousarray(s['positions'][:, kept_joints])
 
                 # Update all rotations in the dataset
+                # does not do anything for removed end-effectors
+                # only really necessary for shoulders
                 rotations = s['rotations']
                 for joint in joints_to_remove:
                     for child in self._skeleton.children()[joint]:
