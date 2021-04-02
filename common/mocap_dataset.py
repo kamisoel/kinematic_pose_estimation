@@ -10,9 +10,9 @@ import torch
 from common.quaternion import qeuler_np, qfix, qmul_np
 
 class MocapDataset:
-    def __init__(self, skeleton, fps):
-        self._data = None # Must be filled by subclass
-        self._cameras = None # Must be filled by subclass
+    def __init__(self, skeleton, fps, data=None, cameras=None):
+        self._data = data
+        self._cameras = cameras
         self._fps = fps
         self._use_gpu = False
         self._skeleton = skeleton

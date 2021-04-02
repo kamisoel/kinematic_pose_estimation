@@ -298,10 +298,8 @@ class Human36mDataset(MocapDataset):
         if not keep_feet:
             self.remove_joints([4, 8])
 
-        self.calc_2d_pos()
 
-
-    def calc_2d_pos(self):
+    def calc_2d_pos(self, normalized=False):
         """
         compute 2D gt poses from all 4 cameras in pixel space
         """
@@ -314,7 +312,9 @@ class Human36mDataset(MocapDataset):
                   for cam in anim['cameras']:
                       pos_3d = world_to_camera(anim['positions'], R=cam['orientation'], t=cam['translation'])
                       pos_2d = wrap(project_to_2d, pos_3d, cam['intrinsic'], unsqueeze=True)
-                      pos_2d_pixel_space = image_coordinates(pos_2d, w=cam['res_w'], h=cam['res_h'])
-                      positions_2d.append(pos_2d_pixel_space.astype('float32'))
+                      if not normalized:
+                         #convert to pixel_space 
+                        pos_2d = image_coordinates(pos_2d, w=cam['res_w'], h=cam['res_h'])
+                      positions_2d.append(pos_2d.astype('float32'))
                   anim['positions_2d'] = positions_2d
 
