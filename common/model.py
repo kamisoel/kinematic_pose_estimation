@@ -12,7 +12,7 @@ class TemporalModelBase(nn.Module):
     Do not instantiate this class.
     """
     
-    def __init__(self, num_joints_in, in_features, num_joints_out,
+    def __init__(self, in_features, out_features, num_joints,
                  filter_widths, causal, dropout, channels):
         super().__init__()
         
@@ -20,9 +20,9 @@ class TemporalModelBase(nn.Module):
         for fw in filter_widths:
             assert fw % 2 != 0, 'Only odd filter widths are supported'
         
-        self.num_joints_in = num_joints_in
+        self.num_joints = num_joints
         self.in_features = in_features
-        self.num_joints_out = num_joints_out
+        self.out_features = out_features
         self.filter_widths = filter_widths
         
         self.drop = nn.Dropout(dropout)
@@ -30,7 +30,7 @@ class TemporalModelBase(nn.Module):
         
         self.pad = [ filter_widths[0] // 2 ]
         self.expand_bn = nn.BatchNorm1d(channels, momentum=0.1)
-        self.shrink = nn.Conv1d(channels, num_joints_out*3, 1)
+        self.shrink = nn.Conv1d(channels, num_joints*out_features, 1)
         
 
     def set_bn_momentum(self, momentum):
@@ -62,7 +62,7 @@ class TemporalModelBase(nn.Module):
         
     def forward(self, x):
         assert len(x.shape) == 4
-        assert x.shape[-2] == self.num_joints_in
+        assert x.shape[-2] == self.num_joints
         assert x.shape[-1] == self.in_features
         
         sz = x.shape[:3]
@@ -72,7 +72,7 @@ class TemporalModelBase(nn.Module):
         x = self._forward_blocks(x)
         
         x = x.permute(0, 2, 1)
-        x = x.view(sz[0], -1, self.num_joints_out, 3)
+        x = x.view(sz[0], -1, self.num_joints, self.out_features)
         
         return x    
 
@@ -82,7 +82,7 @@ class TemporalModel(TemporalModelBase):
     This implementation can be used for all use-cases.
     """
     
-    def __init__(self, num_joints_in, in_features, num_joints_out,
+    def __init__(self, in_features, out_features, num_joints,
                  filter_widths, causal=False, dropout=0.25, channels=1024, dense=False):
         """
         Initialize this model.
@@ -97,9 +97,9 @@ class TemporalModel(TemporalModelBase):
         channels -- number of convolution channels
         dense -- use regular dense convolutions instead of dilated convolutions (ablation experiment)
         """
-        super().__init__(num_joints_in, in_features, num_joints_out, filter_widths, causal, dropout, channels)
+        super().__init__(in_features, out_features, num_joints, filter_widths, causal, dropout, channels)
         
-        self.expand_conv = nn.Conv1d(num_joints_in*in_features, channels, filter_widths[0], bias=False)
+        self.expand_conv = nn.Conv1d(num_joints*in_features, channels, filter_widths[0], bias=False)
         
         layers_conv = []
         layers_bn = []
@@ -148,7 +148,7 @@ class TemporalModelOptimized1f(TemporalModelBase):
     with the reference implementation.
     """
     
-    def __init__(self, num_joints_in, in_features, num_joints_out,
+    def __init__(self, in_features, out_features, num_joints,
                  filter_widths, causal=False, dropout=0.25, channels=1024):
         """
         Initialize this model.
@@ -162,9 +162,9 @@ class TemporalModelOptimized1f(TemporalModelBase):
         dropout -- dropout probability
         channels -- number of convolution channels
         """
-        super().__init__(num_joints_in, in_features, num_joints_out, filter_widths, causal, dropout, channels)
+        super().__init__(in_features, out_features, num_joints, filter_widths, causal, dropout, channels)
         
-        self.expand_conv = nn.Conv1d(num_joints_in*in_features, channels, filter_widths[0], stride=filter_widths[0], bias=False)
+        self.expand_conv = nn.Conv1d(num_joints*in_features, channels, filter_widths[0], stride=filter_widths[0], bias=False)
         
         layers_conv = []
         layers_bn = []
