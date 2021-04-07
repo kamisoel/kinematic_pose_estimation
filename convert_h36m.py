@@ -28,8 +28,8 @@ def load_h36m_feature(path, feature='D3_Positions', n_joints=32,
         continue # Discard corrupted video
 
       cdf_content = cdflib.CDF(f.resolve())['Pose']
-      #if 'Position' in feature:
-      #  cdf_content /= 1000 # Meters instead of millimeters
+      if 'Position' in feature:
+        cdf_content /= 1000 # Meters instead of millimeters
       #if 'Angle' in feature:
       #  cdf_content = cdf_content[:, :, 3:] # drop hip position
 
@@ -54,6 +54,7 @@ def preprocess_rotations(data):
 
             # change order from zxy to xyz
             r = np.roll(r, 2, axis=-1)
+
             
             # add zero rotation for end-effectors if necessary
             if r.shape[1] == 25:
@@ -63,14 +64,14 @@ def preprocess_rotations(data):
                       r[:,9:13,:], np.zeros((l,1,3)), r[:,13:19,:], 
                       np.zeros((l,2,3)), r[:,19:,:], np.zeros((l,2,3))),
                     axis=1)
-            
+
             # degrees to radians
             r = np.deg2rad(r)
-            #change from euler to quaternion representation
-            r = euler_to_quaternion(r, 'zxy')
+            # change from euler to quaternion representation
+            r = qfix(euler_to_quaternion(r, 'zxy'))
             
             rot_3d[subject][action] = r
-            traj[subject][action] = t
+            traj[subject][action] = t / 1000. # convert to meter
     
     return rot_3d, traj
 
@@ -90,26 +91,53 @@ def convert_h36m_from_cdf(path):
   
   print('Done.')
 
+def load_h36m(path, keep_feet=True, keep_shoulders=True, downsample=1):
+    features_file = Path(path) / 'h36m_features.npz'
 
-def prepare_2d_data(path, remove_feet=False):
-  features_file = Path(path) / 'h36m_features.npz'
+    # convert from cdf files if necessary
+    if not features_file.exists():
+        convert_h36m_from_cdf(path)
 
-  if not features_file.exists():
-    convert_h36m_from_cdf(path)
+    print('Load H36m data...')
+    dataset = Human36mDataset(features_file.resolve(), keep_feet, keep_shoulders)
 
-  print('Preprocess data and calculate 2D positions...')
-  dataset = Human36mDataset(features_file.resolve(), remove_feet)
+    if downsample > 1:
+        dataset.downsample(downsample)
 
-  metadata = {
-      'num_joints': dataset.skeleton().num_joints(),
-      'keypoints_symmetry': [dataset.skeleton().joints_left(), 
-                             dataset.skeleton().joints_right()]
-  }
+    print('Computing ground-truth 2D poses...')
+    dataset.calc_2d_pos(normalized=True) # use normalized camera frames
+    print('Done.')
 
-  print('Saving 2d data...')
-  file_2d = Path(path) / 'h36m_gt.npz'
-  np.savez_compressed(file_2d.resolve(), pose=dataset._data, metadata=metadata)
-  print('Done.')
+    return dataset
+
+def create_meta(dataset):
+    metadata = {
+        'num_joints': dataset.skeleton().num_joints(),
+        'keypoints_symmetry': [dataset.skeleton().joints_left(), 
+                              dataset.skeleton().joints_right()]
+    }
+    return metadata
+
+# prepares dataset and saves preprocessed npz file
+def create_h36m_gt(path, keep_feet=True, keep_shoulders=True, downsample=1):
+    dataset = load_h36m(path, keep_feet, keep_shoulders, downsample)
+
+    metadata = create_meta(dataset)
+    
+    #extract relevant features (2d keypoints & rotations)
+    pose = {}
+    for subject in dataset.subjects():
+        pose[subject] = {}
+        for action in dataset[subject]:
+            pose_data = {}
+            pose_data['rotations'] = dataset[subject][action]['rotations']
+            pose_data['positions_2d'] = dataset[subject][action]['positions_2d']
+            pose[subject][action] = pose_data
+
+    print('Saving 2d data...')
+    file_2d = Path(path) / 'h36m_2d.npz'
+    np.savez_compressed(file_2d.resolve(), pose=pose, metadata=metadata)
+    print('Saving complete.')
 
 
 if __name__ == '__main__':
@@ -121,7 +149,7 @@ if __name__ == '__main__':
 
   args = parser.parse_args()
 
-  prepare_2d_data(args.path, not args.include_feet)
+  create_h36m_gt(args.path, not args.include_feet)
 
 
 

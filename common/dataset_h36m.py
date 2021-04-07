@@ -8,7 +8,7 @@
 import numpy as np
 import pandas as pd
 import copy
-from common.quaternion import expmap_to_quaternion, qfix
+from common.quaternion import expmap_to_quaternion, qfix, qmul_np
 from common.mocap_dataset import MocapDataset
 from common.skeleton import Skeleton
 from common.camera import *
@@ -50,8 +50,8 @@ h36m_skeleton = Skeleton(offsets=[
     ],
     parents=[-1,  0,  1,  2,  3,  4,  0,  6,  7,  8,  9,  0, 11, 12, 13, 14, 12,
        16, 17, 18, 19, 20, 19, 22, 12, 24, 25, 26, 27, 28, 27, 30],
-    joints_left=[1, 2, 3, 4, 5, 24, 25, 26, 27, 28, 29, 30, 31],
-    joints_right=[6, 7, 8, 9, 10, 16, 17, 18, 19, 20, 21, 22, 23])
+    joints_right=[1, 2, 3, 4, 5, 24, 25, 26, 27, 28, 29, 30, 31],
+    joints_left=[6, 7, 8, 9, 10, 16, 17, 18, 19, 20, 21, 22, 23])
 
 h36m_cameras_intrinsic_params = [
     {
@@ -244,8 +244,9 @@ h36m_cameras_extrinsic_params = {
 }
 
 class Human36mDataset(MocapDataset):
-    def __init__(self, path, keep_feet=False, keep_real_shoulder=False):
+    def __init__(self, path, keep_feet=False, keep_shoulders=False):
         super().__init__(skeleton=copy.deepcopy(h36m_skeleton), fps=50, )
+        self.skeleton()._offsets /= 1000 # use m instead of mm
         
         self._cameras = copy.deepcopy(h36m_cameras_extrinsic_params)
         for cameras in self._cameras.values():
@@ -282,28 +283,75 @@ class Human36mDataset(MocapDataset):
                     'cameras': self._cameras[subject],
                     'rotations': rot_3d[subject][action_name],
                     'trajectory': traj[subject][action_name],
-                }
-        
+                } 
 
         # Bring the skeleton to 21 joints instead of the original 32
-        self.remove_joints([5, 10, 11, 20, 21, 22, 23, 28, 29, 30, 31])
+        self.remove_joints([5, 10, 11, 12, 20, 21, 22, 23, 28, 29, 30, 31])
 
-        if not keep_real_shoulder: #TODO: something is odd
-            self.remove_joints([13, 17])
-            # Rewire shoulders to the correct parents
-            #self._skeleton._parents[13] = 9
-            #self._skeleton._parents[17] = 9
-            self._skeleton._compute_metadata() # recalculate children
+        if not keep_shoulders:
+            self._fix_shoulders(13, 17, 9)
+            
         
         if not keep_feet:
             self.remove_joints([4, 8])
+
+
+    # removes the unnecessary double joints for the shoulder
+    # by removing the static ones, rewiring to the neck and fixing the offsets
+    # rotation won't get propagated!
+    def _fix_shoulders(self, lsho, rsho, neck):
+        skeleton = self._skeleton
+        lsho_parent, rsho_parent = skeleton._parents[[lsho, rsho]]
+        kept_joints = [j for j in range(skeleton.num_joints()) 
+                          if j != lsho_parent and j != rsho_parent]
+
+
+        # remove from dataset
+        for subject in self._data.keys():
+            for action in self._data[subject]:
+                s = self._data[subject][action]
+                s['positions'] = np.ascontiguousarray(s['positions'][:, kept_joints])
+                
+                rot = s['rotations']
+                for joint in [lsho_parent, rsho_parent]:
+                    for child in self._skeleton.children()[joint]:
+                        rot[:, child] = qmul_np(rot[:, joint], rot[:, child])
+                s['rotations'] = np.ascontiguousarray(rot[:, kept_joints])
+
+        # fix offsets
+        swap_idx = torch.tensor([1,0,2]) # swap first and second value
+        skeleton._offsets[lsho] = skeleton._offsets[lsho].index_select(0, swap_idx)
+        skeleton._offsets[rsho] = - skeleton._offsets[rsho].index_select(0, swap_idx)
+        skeleton._offsets = skeleton._offsets[kept_joints]
+
+        # remove static shoulders & rewire shoulders to the neck
+        skeleton._joints_left.remove(lsho_parent)
+        skeleton._joints_right.remove(rsho_parent)
+        skeleton._parents[lsho] = neck
+        skeleton._parents[rsho] = neck
+        skeleton._parents = skeleton._parents[kept_joints]
+
+        # recount indices for parent list
+        for i, p in enumerate(skeleton._parents):
+            index_offset = 2 if p >= rsho else 1 if p >= lsho else 0
+            skeleton._parents[i] -= index_offset
+
+        # recount indices for joints_left & joints_right
+        for i, j in enumerate(skeleton._joints_left):
+            index_offset = 2 if j >= rsho else 1 if j >= lsho else 0
+            skeleton._joints_left[i] -= index_offset
+        for i, j in enumerate(skeleton._joints_right):
+            index_offset = 2 if j >= rsho else 1 if j >= lsho else 0
+            skeleton._joints_right[i] -= index_offset
+
+        # fix children list
+        skeleton._compute_metadata()
 
 
     def calc_2d_pos(self, normalized=False):
         """
         compute 2D gt poses from all 4 cameras in pixel space
         """
-        #print('Computing ground-truth 2D poses...')
         for subject in self.subjects():
               for action in self._data[subject].keys():
                   anim = self._data[subject][action]

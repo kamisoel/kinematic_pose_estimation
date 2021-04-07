@@ -5,7 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class TemporalModelBase(nn.Module):
     """
@@ -26,7 +28,7 @@ class TemporalModelBase(nn.Module):
         self.filter_widths = filter_widths
         
         self.drop = nn.Dropout(dropout)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(0.05, inplace=True)
         
         self.pad = [ filter_widths[0] // 2 ]
         self.expand_bn = nn.BatchNorm1d(channels, momentum=0.1)
@@ -72,9 +74,9 @@ class TemporalModelBase(nn.Module):
         x = self._forward_blocks(x)
         
         x = x.permute(0, 2, 1)
-        x = x.view(sz[0], -1, self.num_joints, self.out_features)
+        x = x.view(sz[0], -1, self.num_joints, self.out_features).contiguous()
         
-        return x    
+        return F.normalize(x, dim=-1)
 
 class TemporalModel(TemporalModelBase):
     """

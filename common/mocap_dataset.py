@@ -42,6 +42,7 @@ class MocapDataset:
                 # Update all rotations in the dataset
                 # does not do anything for removed end-effectors
                 # only really necessary for shoulders
+                # TODO: set rotations to zero for new end-effectors
                 rotations = s['rotations']
                 for joint in joints_to_remove:
                     for child in self._skeleton.children()[joint]:

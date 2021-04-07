@@ -38,7 +38,7 @@ class Skeleton:
     def children(self):
         return self._children
     
-    def remove_joints(self, joints_to_remove):
+    def remove_joints(self, joints_to_remove, propagate_offset=True):
         """
         Remove the joints specified in 'joints_to_remove' from the
         skeleton definition
@@ -47,11 +47,13 @@ class Skeleton:
                       if joint not in joints_to_remove]
 
         # set parent to parents' parent if removed
+        # down propagate their offset
         # does not work for h36m shoulders
         for i in range(len(self._parents)):
             while self._parents[i] in joints_to_remove:
-                self._parents[i] = self._parents[self._parents[i]]
-                
+                if propagate_offset:
+                    self._offsets[i] += self._offsets[self._parents[i]]
+                self._parents[i] = self._parents[self._parents[i]]      
 
         # recount indices for parent list
         index_offsets = np.zeros(len(self._parents), dtype=int)
@@ -62,9 +64,6 @@ class Skeleton:
             else:
                 index_offsets[i:] += 1
         self._parents = np.array(new_parents)
-
-        self._offsets = self._offsets[kept_joints]
-        # shoulder offset?
 
         # fix indices for joints_left & joints_right
         if self._joints_left is not None:
@@ -80,6 +79,7 @@ class Skeleton:
                     new_joints_right.append(joint - index_offsets[joint])
             self._joints_right = new_joints_right
 
+        self._offsets = self._offsets[kept_joints]
         self._compute_metadata()
 
         return kept_joints
@@ -122,6 +122,14 @@ class Skeleton:
     
     def joints_right(self):
         return self._joints_right
+
+    def _all_children(self, parent):
+      cs = []
+      for c in self._children[parent]:
+          cs.append(c)
+          cs.extend(self._all_children(c))
+      return cs
+
         
     def _compute_metadata(self):
         self._has_children = np.zeros(len(self._parents)).astype(bool)
